@@ -1,0 +1,6 @@
+docker/python
+.vscode
+.idea
+**/.ipynb_checkpoints
+**/__pycache__
+**/*.pyc

@@ -40,6 +40,8 @@ services:
         tty: true
         volumes:
           - ../web/app/:/usr/src/app/
+          - ./python/python-3-12/bin/:/usr/local/bin/
+          - ./python/python-3-12/site-packages/:/usr/local/lib/python3.12/site-packages/
 #        external_links:
 #            - mailhog
         environment:

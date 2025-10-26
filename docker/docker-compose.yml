@@ -42,8 +42,8 @@ services:
         tty: true
         volumes:
           - ../web/app/:/usr/src/app/
-          #- ./python/python-3-12/bin/:/usr/local/bin/
-          #- ./python/python-3-12/site-packages/:/usr/local/lib/python3.12/site-packages/
+          - ./python/python-3-12/bin/:/usr/local/bin/
+          - ./python/python-3-12/site-packages/:/usr/local/lib/python3.12/site-packages/
           #- ./python/cache/huggingface/:/root/.cache/huggingface/
 #        external_links:
 #            - mailhog
@@ -70,21 +70,23 @@ services:
             QUERY_DEFAULTS_LIMIT: 20
             AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
             PERSISTENCE_DATA_PATH: "./data"
-            DEFAULT_VECTORIZER_MODULE: text2vec-transformers
-            ENABLE_MODULES: text2vec-transformers
-            TRANSFORMERS_INFERENCE_API: http://wikiragt2vtransformers:8080
+            DEFAULT_VECTORIZER_MODULE: none
+            ENABLE_MODULES: ''
+#            DEFAULT_VECTORIZER_MODULE: text2vec-transformers
+#            ENABLE_MODULES: text2vec-transformers
+#            TRANSFORMERS_INFERENCE_API: http://wikiragt2vtransformers:8080
             CLUSTER_HOSTNAME: 'node1'
-        links:
-            - wikiragt2vtransformers
-    wikiragt2vtransformers:
-        << : *global_config
-        container_name: wikirag-t2v-transformers
-        image: cr.weaviate.io/semitechnologies/transformers-inference:sentence-transformers-multi-qa-MiniLM-L6-cos-v1
-        platform: linux/amd64
-        ports:
-            - 8081:8080
-        environment:
-            ENABLE_CUDA: '0'
+#        links:
+#            - wikiragt2vtransformers
+#    wikiragt2vtransformers:
+#        << : *global_config
+#        container_name: wikirag-t2v-transformers
+#        image: cr.weaviate.io/semitechnologies/transformers-inference:sentence-transformers-multi-qa-MiniLM-L6-cos-v1
+#        platform: linux/amd64
+#        ports:
+#            - 8081:8080
+#        environment:
+#            ENABLE_CUDA: '0'
 volumes:
     wikirag-weaviate-dbdata:
         driver: local

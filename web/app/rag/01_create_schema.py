@@ -8,6 +8,7 @@ HOST = "wikiragweaviate"
 HTTP_PORT = 8080
 GRPC_PORT = 50051
 
+# Health check
 try:
     r = requests.get(f"http://{HOST}:{HTTP_PORT}/v1/.well-known/ready", timeout=5)
     print("⏳ Vérification Weaviate…")
@@ -16,19 +17,14 @@ except Exception as e:
     print("❌ HTTP inaccessible:", e)
     sys.exit(1)
 
-connection = weaviate.connect.ConnectionParams.from_params(
-    http_host=HOST,
-    http_port=HTTP_PORT,
-    http_secure=False,
-    grpc_host=HOST,
-    grpc_port=GRPC_PORT,
-    grpc_secure=False,
+# Connexion client v4
+client = weaviate.connect_to_custom(
+    http_host=HOST, http_port=HTTP_PORT, http_secure=False,
+    grpc_host=HOST, grpc_port=GRPC_PORT, grpc_secure=False
 )
-
-client = weaviate.WeaviateClient(connection)
-client.connect()
 print("✅ Client connecté ✅")
 
+# Reset
 if client.collections.exists("LinuxCommand"):
     print("🗑️ Suppression ancienne collection...")
     client.collections.delete("LinuxCommand")
@@ -42,7 +38,7 @@ client.collections.create(
         Property(name="command", data_type=DataType.TEXT),
         Property(name="description", data_type=DataType.TEXT),
     ],
-    vectorizer_config=Configure.Vectorizer.none(),
+    vector_index_config=Configure.VectorIndex.hnsw()
 )
 
 print("✅ Schéma OK ✅")

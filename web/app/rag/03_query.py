@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 if len(sys.argv) < 2:
-    print("Usage: python 03_query.py \"ta question\"")
+    print("Usage: python 03_query.py \"ta question ici\"")
     sys.exit(1)
 
 question = sys.argv[1]
@@ -20,14 +20,17 @@ client_db = weaviate.connect_to_custom(
 
 collection = client_db.collections.get("LinuxCommand")
 
-# Vectorisation de la requête côté Python
+# ✅ Embeddings côté client
 emb = client_ai.embeddings.create(
     model="text-embedding-3-small",
     input=question
 ).data[0].embedding
 
-results = collection.query.near_vector(
-    near_vector=emb,
+# ✅ Hybrid local-vector search
+results = collection.query.hybrid(
+    query=question,
+    vector=emb,
+    alpha=0.5,
     limit=4
 ).objects
 
@@ -39,7 +42,7 @@ for obj in results:
 
 prompt = f"""
 Tu es un assistant Linux.
-Donne une commande dans un bloc code + une explication très courte.
+Réponds avec une commande dans un bloc code + explication ultra courte.
 
 Question: {question}
 

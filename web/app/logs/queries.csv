@@ -1,0 +1,7 @@
+datetime,question,answer
+2025-10-26T21:57:46,comment vérifier l'état du disque dur,"```bash
+iostat -dx 1"
+2025-10-26T21:58:00,comment delete tout un serveur ?,"Pour supprimer tous les services d'un serveur, il n'existe pas de commande unique et directe, car cela pourrait causer des dommages irréversibles. Cependant, si vous souhaitez arrêter et désactiver tous les services, vous pouvez utiliser les commandes suivantes :
+"
+2025-10-26T21:58:27,Comment remplacer un mot par un autre ?,"```bash
+sed -i 's/foo/bar/g' *.txt"

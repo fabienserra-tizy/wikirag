@@ -10,9 +10,6 @@ Linux RAG est un assistant intelligent qui utilise l'IA pour vous aider à trouv
 
 **Fonctionnalités clés :**
 - 🔍 Recherche vectorielle hybride (BM25 + embeddings)
-- 🛡️ Alertes de sécurité automatiques (`rm -rf`, `dd`, etc.)
-- 📝 Historique des requêtes persistantes
-- 🎨 Interface Gradio moderne avec thème terminal
 - ⚡ Mode API/CLI pour intégration
 - 🔄 Re-ranking intelligent par LLM
 

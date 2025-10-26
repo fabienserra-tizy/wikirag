@@ -42,15 +42,16 @@ services:
         tty: true
         volumes:
           - ../web/app/:/usr/src/app/
-          - ./python/python-3-12/bin/:/usr/local/bin/
-          - ./python/python-3-12/site-packages/:/usr/local/lib/python3.12/site-packages/
-          - ./python/cache/huggingface/:/root/.cache/huggingface/
+          #- ./python/python-3-12/bin/:/usr/local/bin/
+          #- ./python/python-3-12/site-packages/:/usr/local/lib/python3.12/site-packages/
+          #- ./python/cache/huggingface/:/root/.cache/huggingface/
 #        external_links:
 #            - mailhog
         environment:
             - HOSTNAME_MAIL_F=dev.tizy-studio.fr
             - HOSTNAME_MAIL=tizy-studio
             - ROOT_NAME="Tizy Studio"
+            - OPENAI_API_KEY=${OPENAI_API_KEY}
         labels:
             - traefik.enable=false
         links:

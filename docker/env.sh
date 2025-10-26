@@ -2,6 +2,7 @@
 
 # ******* Proxy and web server ******* #
 export VHOST_TRAEFIK=wikirag.${DOCKER_USERNAME}.databird.io
+export OPENAI_API_KEY="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"
 # If you want more:
 #export VHOST_TRAEFIK_1=
 #export VHOST_TRAEFIK_2=

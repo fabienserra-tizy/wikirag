@@ -35,6 +35,8 @@ services:
         hostname: tizy-studio.fr
         image: registry.tizy-cloud.com:5000/prod/python:3.12-3
         platform: linux/amd64
+        ports:
+            - 7860:7860
         stdin_open: true
         command: sh -c "pip install --no-cache-dir -r /usr/src/app/requirements.txt && tail -f /dev/null"
         tty: true
@@ -42,6 +44,7 @@ services:
           - ../web/app/:/usr/src/app/
           - ./python/python-3-12/bin/:/usr/local/bin/
           - ./python/python-3-12/site-packages/:/usr/local/lib/python3.12/site-packages/
+          - ./python/cache/huggingface/:/root/.cache/huggingface/
 #        external_links:
 #            - mailhog
         environment:
@@ -50,6 +53,8 @@ services:
             - ROOT_NAME="Tizy Studio"
         labels:
             - traefik.enable=false
+        links:
+            - wikiragweaviate
     wikiragweaviate:
         << : *global_config
         container_name: wikirag-weaviate

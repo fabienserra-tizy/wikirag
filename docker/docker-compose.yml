@@ -1,0 +1,82 @@
+x-global-config: &global_config
+    network_mode: bridge
+    restart: always
+services:
+    wikiragnginx:
+        << : *global_config
+        container_name: wikirag-nginx
+        image: registry.tizy-cloud.com:5000/dev/nginx:1.27.0-1
+        platform: linux/amd64
+        volumes:
+            - ../web/:/var/www/wikirag
+            # BEGIN Insert your dependencies here (PLEASE DO NOT REMOVE THIS LINE)
+            # - ../../project2/web/:/var/www/project2
+            # END Insert your dependencies here (PLEASE DO NOT REMOVE THIS LINE)
+            - ./nginx/vhost.conf:/tmp/nginx-default.conf
+            - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+            #- ./nginx/url.map:/etc/nginx/url.map
+        labels:
+            - traefik.enable=true
+            - traefik.http.routers.wikirag-http.entrypoints=http
+            - traefik.http.routers.wikirag-http.rule=Host(`${VHOST_TRAEFIK}`)
+            - traefik.http.routers.wikirag-http.middlewares=wikirag-https
+            - traefik.http.middlewares.wikirag-https.redirectscheme.scheme=https
+            - traefik.http.routers.wikirag.entrypoints=https
+            - traefik.http.routers.wikirag.rule=Host(`${VHOST_TRAEFIK}`)
+            - traefik.http.routers.wikirag.tls=true
+        environment:
+            - VHOST_TRAEFIK=${VHOST_TRAEFIK}
+        links:
+            - wikiragpython
+            - wikiragweaviate
+    wikiragpython:
+        << : *global_config
+        container_name: wikirag-python
+        hostname: tizy-studio.fr
+        image: registry.tizy-cloud.com:5000/prod/python:3.12-3
+        platform: linux/amd64
+        stdin_open: true
+        command: sh -c "pip install --no-cache-dir -r /usr/src/app/requirements.txt && tail -f /dev/null"
+        tty: true
+        volumes:
+          - ../web/app/:/usr/src/app/
+#        external_links:
+#            - mailhog
+        environment:
+            - HOSTNAME_MAIL_F=dev.tizy-studio.fr
+            - HOSTNAME_MAIL=tizy-studio
+            - ROOT_NAME="Tizy Studio"
+        labels:
+            - traefik.enable=false
+    wikiragweaviate:
+        << : *global_config
+        container_name: wikirag-weaviate
+        image: cr.weaviate.io/semitechnologies/weaviate:1.33.1
+        platform: linux/amd64
+        ports:
+          - 8080:8080
+          - 50051:50051
+        volumes:
+            - wikirag-weaviate-dbdata:/data
+        environment:
+            QUERY_DEFAULTS_LIMIT: 20
+            AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+            PERSISTENCE_DATA_PATH: "./data"
+            DEFAULT_VECTORIZER_MODULE: text2vec-transformers
+            ENABLE_MODULES: text2vec-transformers
+            TRANSFORMERS_INFERENCE_API: http://wikiragt2vtransformers:8080
+            CLUSTER_HOSTNAME: 'node1'
+        links:
+            - wikiragt2vtransformers
+    wikiragt2vtransformers:
+        << : *global_config
+        container_name: wikirag-t2v-transformers
+        image: cr.weaviate.io/semitechnologies/transformers-inference:sentence-transformers-multi-qa-MiniLM-L6-cos-v1
+        platform: linux/amd64
+        ports:
+            - 8081:8080
+        environment:
+            ENABLE_CUDA: '0'
+volumes:
+    wikirag-weaviate-dbdata:
+        driver: local

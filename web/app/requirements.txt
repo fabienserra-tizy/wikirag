@@ -1,7 +1,6 @@
 langchain>=1.0.2
 langchain-openai>=1.0.1
 weaviate-client==4.17.0
-
 openai>=1.44.0
 python-dotenv>=1.0.1
 datasets>=3.0.0

@@ -15,11 +15,11 @@ client_db = weaviate.connect_to_custom(
     http_host=HOST, http_port=HTTP_PORT, http_secure=False,
     grpc_host=HOST, grpc_port=GRPC_PORT, grpc_secure=False,
 )
-print("✅ Connecté Weaviate")
+print("✅ Weaviate est connecté ✅")
 
 client_ai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-print("📥 Chargement du dataset…")
+print("📥 Chargement du dataset hrsvrn/linux-commands-dataset…")
 ds = load_dataset("hrsvrn/linux-commands-dataset", split="train[:500]")
 
 collection = client_db.collections.get("LinuxCommand")
@@ -50,6 +50,6 @@ for item in ds:
 # ✅ insertion propre & valide
 collection.data.insert_many(batch)
 
-print(f"✅ {len(batch)} commandes indexées ✅")
+print(f"✅ {len(batch)} commandes Linux indexées ✅")
 client_db.close()
-print("🔒 Weaviate fermé ✅")
+print("🔒 Fin de la connexion à Weaviate ✅")

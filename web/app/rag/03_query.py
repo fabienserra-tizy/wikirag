@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 if len(sys.argv) < 2:
-    print("Usage: python 03_query.py \"ta question ici\"")
+    print("Utilisation : python 03_query.py \"poser une question ici\"")
     sys.exit(1)
 
 question = sys.argv[1]
@@ -20,13 +20,13 @@ client_db = weaviate.connect_to_custom(
 
 collection = client_db.collections.get("LinuxCommand")
 
-# ✅ Embeddings côté client
+# Embeddings
 emb = client_ai.embeddings.create(
     model="text-embedding-3-small",
     input=question
 ).data[0].embedding
 
-# ✅ Hybrid local-vector search
+# Hybrid local-vector search
 results = collection.query.hybrid(
     query=question,
     vector=emb,

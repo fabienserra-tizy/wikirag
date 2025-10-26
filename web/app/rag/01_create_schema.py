@@ -11,10 +11,10 @@ GRPC_PORT = 50051
 # Health check
 try:
     r = requests.get(f"http://{HOST}:{HTTP_PORT}/v1/.well-known/ready", timeout=5)
-    print("⏳ Vérification Weaviate…")
-    print("✅ HTTP accessible:", r.status_code)
+    print("⏳ Vérification de l'instance Weaviate…")
+    print("✅ Weaviate semble accessible :", r.status_code)
 except Exception as e:
-    print("❌ HTTP inaccessible:", e)
+    print("❌ Weaviate semble inaccessible :", e)
     sys.exit(1)
 
 # Connexion client v4
@@ -22,15 +22,15 @@ client = weaviate.connect_to_custom(
     http_host=HOST, http_port=HTTP_PORT, http_secure=False,
     grpc_host=HOST, grpc_port=GRPC_PORT, grpc_secure=False
 )
-print("✅ Client connecté ✅")
+print("✅ Le client Weaviate est connecté ✅")
 
 # Reset
 if client.collections.exists("LinuxCommand"):
-    print("🗑️ Suppression ancienne collection...")
+    print("🗑️ Suppression de la collection LinuxCommand...")
     client.collections.delete("LinuxCommand")
     time.sleep(1)
 
-print("🛠️ Nouveau schéma…")
+print("🛠️ Création de la nouvelle collection LinuxCommand…")
 
 client.collections.create(
     name="LinuxCommand",
@@ -41,5 +41,5 @@ client.collections.create(
     vector_index_config=Configure.VectorIndex.hnsw()
 )
 
-print("✅ Schéma OK ✅")
+print("✅ La collection LinuxCommand est OK ✅")
 client.close()

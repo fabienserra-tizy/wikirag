@@ -1,134 +1,163 @@
 import os
-import weaviate
 import gradio as gr
-import pandas as pd
-from datetime import datetime
+import weaviate
 from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
-LOG_PATH = "/usr/src/app/logs/queries.csv"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise RuntimeError("❌ La variable OPENAI_API_KEY est manquante")
 
-# Init logs file if not exists
-if not os.path.exists(LOG_PATH):
-    pd.DataFrame(columns=["datetime", "question", "answer"]).to_csv(LOG_PATH, index=False)
-
-client_ai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Clients
+client_ai = OpenAI(api_key=OPENAI_API_KEY)
 client_db = weaviate.connect_to_custom(
     http_host="wikiragweaviate", http_port=8080, http_secure=False,
     grpc_host="wikiragweaviate", grpc_port=50051, grpc_secure=False,
 )
+
 collection = client_db.collections.get("LinuxCommand")
 
-# Historique en mémoire
-history = []
+
+# Reranking + score (safe parsing)
+def rerank_with_llm(question: str, candidates: list):
+    prompt = f"""
+Tu es un expert Linux.
+Classe les commandes selon leur capacité à répondre à :
+"{question}"
+
+Réponds strictement sous ce format :
+
+1. commande :: description
+2. commande :: description
+
+Commandes candidates :
+{chr(10).join([f"- {cmd} :: {desc}" for cmd, desc in candidates])}
+"""
+
+    resp = client_ai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0
+    ).choices[0].message.content
+
+    results = []
+    for line in resp.splitlines():
+        line = line.strip()
+        if not (line.startswith("1.") or line.startswith("2.")):
+            continue
+
+        rank = 1.0 if line.startswith("1.") else 0.8
+        rank = round(rank, 2)
+
+        if "::" not in line:
+            continue  # format non conforme
+
+        parts = line.split("::", 1)
+        cmd = parts[0].split(".", 1)[-1].strip()
+        desc = parts[1].strip()
+
+        if cmd and desc:
+            results.append((cmd, desc, rank))
+
+    return results[:2]
 
 
-DANGEROUS_KEYWORDS = [
-    "rm -rf", "mkfs", "dd ", "shutdown", "reboot", "kill -9",
-    ">: ", ":(){:", "truncate", "chmod 000", "chown -R",
-]
-
-
-def is_dangerous(cmd: str) -> bool:
-    return any(k in cmd.lower() for k in DANGEROUS_KEYWORDS)
-
-
-def log_request(question, answer):
-    df = pd.read_csv(LOG_PATH)
-    df.loc[len(df)] = [
-        datetime.now().isoformat(timespec="seconds"),
-        question,
-        answer.split("\n```")[0]  # éviter de foutre du markdown dans le CSV
-    ]
-    df.to_csv(LOG_PATH, index=False)
-
-
-def ask(question: str, strict_mode: bool):
+def ask_linux(question: str):
     if not question:
-        return "❌ Pose une question stp", "", history
+        return "", ""
 
+    # Embedding
     emb = client_ai.embeddings.create(
         model="text-embedding-3-small",
         input=question
     ).data[0].embedding
 
-    results = collection.query.near_vector(
-        near_vector=emb,
-        limit=4
+    # Hybrid Search
+    res = collection.query.hybrid(
+        query=question,
+        vector=emb,
+        alpha=0.5,
+        limit=12,
+        return_metadata=["score"]
     ).objects
 
-    if not results:
-        return "Aucune réponse trouvée.", "", history
+    # Aucun résultat textuel du tout
+    if not res:
+        return (
+            "😕 Je ne trouve aucune commande Linux liée à ta demande.",
+            ""
+        )
+
+    # Score textuel Weaviate
+    best_match = res[0]
+    score = best_match.metadata.score if best_match.metadata.score is not None else 0.0
+
+    # Seuil de pertinence réaliste
+    if score < 0.20:
+        return (
+            "😕 Je ne vois pas de commande Linux pertinente pour ta requête.",
+            f"📉 Score de pertinence trop faible ({score:.2f})"
+        )
+
+    # Création des candidats
+    candidates = [
+        (r.properties.get("command", ""), r.properties.get("description", ""))
+        for r in res
+    ]
+
+    # Anti-duplication
+    unique = {}
+    for cmd, desc in candidates:
+        if cmd and desc:
+            unique[cmd] = desc
+    candidates = list(unique.items())
+
+    # Re-ranking LLM
+    best = rerank_with_llm(question, candidates)
 
     context = ""
-    for obj in results:
-        cmd = obj.properties.get("command", "")
-        desc = obj.properties.get("description", "")
-        context += f"- {cmd} :: {desc}\n"
+    for cmd, desc, rank in best:
+        context += f"- **{cmd}** (🎯 {rank:.2f})\n  ↳ {desc}\n\n"
 
-    mode_prompt = "Uniquement un bloc code, sans explication." if strict_mode else \
-                  "Une commande dans un bloc code + explication très courte."
-
+    # Prompt final enrichi
     prompt = f"""
-Tu es un assistant Linux.
-{mode_prompt}
+Tu es un assistant Linux. Réponds en français, concis.
+
+Format :
+1) une seule commande dans un bloc code bash
+2) une explication courte
+3) améliore la commande si nécessaire
 
 Question: {question}
-Contexte:
+
+Sources:
 {context}
 """
 
-    resp = client_ai.chat.completions.create(
+    final = client_ai.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "Réponds en français."},
-            {"role": "user", "content": prompt}
-        ],
+        messages=[{"role": "user", "content": prompt}],
         temperature=0.0
     ).choices[0].message.content
 
-    # Alerte sécurité
-    if is_dangerous(resp):
-        resp += "\n⚠️ **Commande potentiellement dangereuse ! Vérifie avant d’exécuter.**"
-
-    # Log CSV
-    log_request(question, resp)
-
-    # Historique local
-    history.insert(0, question)
-    history_trimmed = history[:10]
-
-    return resp, context, history_trimmed
+    return final.strip(), context.strip()
 
 
-with gr.Blocks(
-    title="Linux RAG 🐧",
-    css="""
-body { background-color: #1c1c1c; color: #e6e6e6; }
-.gradio-container { font-family: 'Fira Code', monospace !important; }
-.markdown-body code { background-color: #000; color: #33ff66; }
-textarea, input { background-color: #2b2b2b !important; color: #fafafa !important; }
-"""
-) as demo:
+# Interface Gradio
+with gr.Blocks(title="Linux Commands RAG") as demo:
+    gr.Markdown("## Trouvez facilement la bonne commande Linux")
 
-    gr.Markdown("### 💻 Linux Command Finder — Edition Tizy")
-    gr.Markdown("Pose ta question, reçois une commande appropriée… et fais gaffe à ton `rm -rf` 👀")
+    q = gr.Textbox(label="Votre question", placeholder="Ex : supprimer tous les fichiers tmp…")
+    answer = gr.Markdown(label="Réponse générée")
+    ctx = gr.Textbox(label="Sources retenues (score & LLM)", lines=10)
 
-    with gr.Row():
-        question = gr.Textbox(scale=4, placeholder="ex : lister les fichiers .log")
-        strict_toggle = gr.Checkbox(label="Mode strict (commande seule)", value=False)
-        ask_btn = gr.Button("▶️ Envoyer 🚀", variant="primary")
+    btn = gr.Button("Rechercher")
+    btn.click(ask_linux, inputs=q, outputs=[answer, ctx])
 
-    with gr.Row():
-        answer = gr.Markdown(label="Réponse 🧠")
-        docs = gr.Markdown(label="Contexte utilisé 📚")
-
-    with gr.Accordion("🕓 Historique des requêtes", open=False):
-        history_box = gr.List(label="Questions récentes", max_height=200)
-
-    ask_btn.click(ask, inputs=[question, strict_toggle], outputs=[answer, docs, history_box])
-
-
-demo.launch(server_name="0.0.0.0", server_port=7860, root_path="/rag")
+demo.launch(
+    server_name="0.0.0.0",
+    server_port=7860,
+    root_path="/rag"
+)

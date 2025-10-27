@@ -24,16 +24,48 @@ client = weaviate.connect_to_custom(
 )
 print("✅ Le client Weaviate est connecté ✅")
 
-# Reset
-if client.collections.exists("LinuxCommand"):
-    print("🗑️ Suppression de la collection LinuxCommand...")
-    client.collections.delete("LinuxCommand")
-    time.sleep(1)
+# Gestion intelligente de la collection existante
+collection_name = "LinuxCommand"
 
-print("🛠️ Création de la nouvelle collection LinuxCommand…")
+if client.collections.exists(collection_name):
+    print(f"⚠️  La collection '{collection_name}' existe déjà !")
+    print("\nQue souhaitez-vous faire ?")
+    print("1. Supprimer et recréer la même collection")
+    print("2. Créer une nouvelle collection avec un nom différent")
+    print("3. Ignorer, ne rien faire")
+    
+    while True:
+        choice = input("\nVotre choix (1/2/3) : ").strip()
+        
+        if choice == "1":
+            print(f"🗑️ Suppression de la collection '{collection_name}'...")
+            client.collections.delete(collection_name)
+            time.sleep(1)
+            print(f"🛠️ Création de la nouvelle collection '{collection_name}'…")
+            break
+            
+        elif choice == "2":
+            new_name = input("Entrez le nouveau nom de collection : ").strip()
+            if not new_name:
+                print("❌ Nom vide, veuillez réessayer.")
+                continue
+            collection_name = new_name
+            print(f"🛠️ Création de la nouvelle collection '{collection_name}'…")
+            break
+            
+        elif choice == "3":
+            print("✅ Aucune modification effectuée.")
+            client.close()
+            sys.exit(0)
+            
+        else:
+            print("❌ Choix invalide. Veuillez entrer 1, 2 ou 3.")
+else:
+    print(f"🛠️ Création de la nouvelle collection '{collection_name}'…")
 
+# Création de la collection
 client.collections.create(
-    name="LinuxCommand",
+    name=collection_name,
     properties=[
         Property(name="command", data_type=DataType.TEXT),
         Property(name="description", data_type=DataType.TEXT),
@@ -41,5 +73,5 @@ client.collections.create(
     vector_index_config=Configure.VectorIndex.hnsw()
 )
 
-print("✅ La collection LinuxCommand est OK ✅")
+print(f"✅ La collection '{collection_name}' est créée avec succès ✅")
 client.close()

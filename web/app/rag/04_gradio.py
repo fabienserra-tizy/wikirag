@@ -1,8 +1,24 @@
 import os
 import gradio as gr
 import weaviate
-from openai import OpenAI
 from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_core.prompts import PromptTemplate
+import warnings
+import asyncio
+
+# Suppression des warnings non critiques
+warnings.filterwarnings("ignore", category=ResourceWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message="unclosed event loop")
+warnings.filterwarnings("ignore", message="websockets.legacy is deprecated")
+warnings.filterwarnings("ignore", message="Con004")
+
+# Suppression des warnings asyncio
+asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+
+# Suppression des warnings Weaviate
+os.environ["WEAVIATE_DISABLE_WARNINGS"] = "1"
 
 load_dotenv()
 
@@ -10,8 +26,13 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise RuntimeError("❌ La variable OPENAI_API_KEY est manquante")
 
-# Clients
-client_ai = OpenAI(api_key=OPENAI_API_KEY)
+# Configuration Langchain
+embeddings = OpenAIEmbeddings(
+    model="text-embedding-3-small",
+    openai_api_key=OPENAI_API_KEY
+)
+
+# Connexion Weaviate v4
 client_db = weaviate.connect_to_custom(
     http_host="wikiragweaviate", http_port=8080, http_secure=False,
     grpc_host="wikiragweaviate", grpc_port=50051, grpc_secure=False,
@@ -19,143 +40,163 @@ client_db = weaviate.connect_to_custom(
 
 collection = client_db.collections.get("LinuxCommand")
 
+# Configuration du LLM avec Langchain
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    temperature=0.0,
+    openai_api_key=OPENAI_API_KEY
+)
 
-# Reranking + score (safe parsing)
-def rerank_with_llm(question: str, candidates: list):
-    prompt = f"""
-Tu es un expert Linux.
-Classe les commandes selon leur capacité à répondre à :
-"{question}"
+# Template de prompt pour l'interface
+prompt_template = """
+Tu es un assistant Linux expert. Réponds en français, concis.
 
-Réponds strictement sous ce format :
-
-1. commande :: description
-2. commande :: description
-
-Commandes candidates :
-{chr(10).join([f"- {cmd} :: {desc}" for cmd, desc in candidates])}
-"""
-
-    resp = client_ai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.0
-    ).choices[0].message.content
-
-    results = []
-    for line in resp.splitlines():
-        line = line.strip()
-        if not (line.startswith("1.") or line.startswith("2.")):
-            continue
-
-        rank = 1.0 if line.startswith("1.") else 0.8
-        rank = round(rank, 2)
-
-        if "::" not in line:
-            continue  # format non conforme
-
-        parts = line.split("::", 1)
-        cmd = parts[0].split(".", 1)[-1].strip()
-        desc = parts[1].strip()
-
-        if cmd and desc:
-            results.append((cmd, desc, rank))
-
-    return results[:2]
-
-
-def ask_linux(question: str):
-    if not question:
-        return "", ""
-
-    # Embedding
-    emb = client_ai.embeddings.create(
-        model="text-embedding-3-small",
-        input=question
-    ).data[0].embedding
-
-    # Hybrid Search
-    res = collection.query.hybrid(
-        query=question,
-        vector=emb,
-        alpha=0.5,
-        limit=12,
-        return_metadata=["score"]
-    ).objects
-
-    # Aucun résultat textuel du tout
-    if not res:
-        return (
-            "😕 Je ne trouve aucune commande Linux liée à ta demande.",
-            ""
-        )
-
-    # Score textuel Weaviate
-    best_match = res[0]
-    score = best_match.metadata.score if best_match.metadata.score is not None else 0.0
-
-    # Seuil de pertinence réaliste
-    if score < 0.20:
-        return (
-            "😕 Je ne vois pas de commande Linux pertinente pour ta requête.",
-            f"📉 Score de pertinence trop faible ({score:.2f})"
-        )
-
-    # Création des candidats
-    candidates = [
-        (r.properties.get("command", ""), r.properties.get("description", ""))
-        for r in res
-    ]
-
-    # Anti-duplication
-    unique = {}
-    for cmd, desc in candidates:
-        if cmd and desc:
-            unique[cmd] = desc
-    candidates = list(unique.items())
-
-    # Re-ranking LLM
-    best = rerank_with_llm(question, candidates)
-
-    context = ""
-    for cmd, desc, rank in best:
-        context += f"- **{cmd}** (🎯 {rank:.2f})\n  ↳ {desc}\n\n"
-
-    # Prompt final enrichi
-    prompt = f"""
-Tu es un assistant Linux. Réponds en français, concis.
-
-Format :
+Format de réponse :
 1) une seule commande dans un bloc code bash
 2) une explication courte
 3) améliore la commande si nécessaire
 
 Question: {question}
 
-Sources:
+Contexte:
 {context}
 """
 
-    final = client_ai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.0
-    ).choices[0].message.content
+PROMPT = PromptTemplate(
+    template=prompt_template,
+    input_variables=["question", "context"]
+)
 
-    return final.strip(), context.strip()
+def ask_linux_langchain(question: str):
+    """Fonction principale utilisant Langchain pour répondre aux questions Linux"""
+    if not question:
+        return "", ""
 
+    try:
+        # Génération de l'embedding pour la question
+        question_embedding = embeddings.embed_query(question)
+        
+        # Recherche hybride avec Weaviate v4 (plus de résultats pour éviter les doublons)
+        results = collection.query.hybrid(
+            query=question,
+            vector=question_embedding,
+            alpha=0.5,
+            limit=12  # Plus de résultats pour avoir de la diversité
+        ).objects
+        
+        # Élimination des doublons et construction du contexte
+        seen_commands = set()
+        unique_results = []
+        context = ""
+        
+        for obj in results:
+            cmd = obj.properties.get("command", "")
+            desc = obj.properties.get("description", "")
+            
+            # Éviter les doublons basés sur la commande
+            if cmd and cmd not in seen_commands:
+                seen_commands.add(cmd)
+                unique_results.append(obj)
+                context += f"- {cmd} :: {desc}\n"
+                
+                # Limiter à 4 résultats uniques maximum
+                if len(unique_results) >= 4:
+                    break
+        
+        # Génération de la réponse avec Langchain
+        prompt = PROMPT.format(question=question, context=context)
+        response = llm.invoke(prompt)
+        
+        # Formatage des sources pour l'affichage
+        sources_text = "📚 Sources utilisées par Langchain:\n\n"
+        for i, obj in enumerate(unique_results, 1):
+            cmd = obj.properties.get("command", "")
+            desc = obj.properties.get("description", "")
+            sources_text += f"{i}. **{cmd}**\n   ↳ {desc}\n\n"
+        
+        return response.content.strip(), sources_text.strip()
+        
+    except Exception as e:
+        error_msg = f"❌ Erreur Langchain: {str(e)}"
+        return error_msg, ""
 
-# Interface Gradio
-with gr.Blocks(title="Linux Commands RAG") as demo:
-    gr.Markdown("## Trouvez facilement la bonne commande Linux")
+# Interface Gradio avec Langchain
+with gr.Blocks(
+    title="Linux Commands RAG - Langchain", 
+    theme=gr.themes.Soft()
+) as demo:
+    
+    gr.Markdown("""
+    # 🐧 Assistant Linux Intelligent avec Langchain
+    
+    Posez votre question en français et recevez la commande Linux appropriée !
+    
+    **Technologies utilisées :**
+    - 🔗 Langchain pour l'orchestration RAG
+    - 🧠 OpenAI GPT-4o-mini pour la génération
+    - 🔍 Weaviate pour la recherche vectorielle
+    - 📊 HuggingFace pour le dataset
+    """)
 
-    q = gr.Textbox(label="Votre question", placeholder="Ex : supprimer tous les fichiers tmp…")
-    answer = gr.Markdown(label="Réponse générée")
-    ctx = gr.Textbox(label="Sources retenues (score & LLM)", lines=10)
+    with gr.Row():
+        with gr.Column(scale=3):
+            question_input = gr.Textbox(
+                label="Votre question Linux", 
+                placeholder="Ex: Comment trouver tous les fichiers modifiés cette semaine ?",
+                lines=2
+            )
+            
+            search_btn = gr.Button("🔍 Rechercher", variant="primary")
+            
+        with gr.Column(scale=1):
+            gr.Markdown("""
+            ### 💡 Exemples de questions
+            - Trouver les fichiers volumineux
+            - Voir les processus en cours
+            - Compresser un dossier
+            - Installer un package
+            """)
 
-    btn = gr.Button("Rechercher")
-    btn.click(ask_linux, inputs=q, outputs=[answer, ctx])
+    with gr.Row():
+        with gr.Column():
+            answer_output = gr.Markdown(
+                label="🤖 Réponse générée par Langchain",
+                value="Posez une question pour commencer..."
+            )
+            
+        with gr.Column():
+            sources_output = gr.Textbox(
+                label="📚 Sources utilisées",
+                lines=8,
+                interactive=False
+            )
 
+    # Gestion des événements
+    search_btn.click(
+        fn=ask_linux_langchain,
+        inputs=[question_input],
+        outputs=[answer_output, sources_output]
+    )
+    
+    # Recherche aussi avec Enter
+    question_input.submit(
+        fn=ask_linux_langchain,
+        inputs=[question_input],
+        outputs=[answer_output, sources_output]
+    )
+
+    # Footer avec informations techniques
+    gr.Markdown("""
+    ---
+    **🔧 Architecture Langchain :**
+    - `HuggingFaceDatasetLoader` → Chargement du dataset
+    - `OpenAIEmbeddings` → Vectorisation des documents  
+    - `Weaviate` → Stockage et recherche vectorielle
+    - `RetrievalQA` → Chain RAG complète
+    - `ChatOpenAI` → Génération des réponses
+    """)
+
+# Lancement de l'interface
 demo.launch(
     server_name="0.0.0.0",
     server_port=7860,

@@ -3,10 +3,42 @@ from weaviate.classes.config import Property, DataType, Configure
 import requests
 import sys
 import time
+import os
+from dotenv import load_dotenv
 
-HOST = "wikiragweaviate"
-HTTP_PORT = 8080
-GRPC_PORT = 50051
+load_dotenv()
+
+# Configuration Weaviate via variables d'environnement
+HOST = os.getenv("WEAVIATE_HOST", "wikiragweaviate")
+HTTP_PORT = int(os.getenv("WEAVIATE_HTTP_PORT", "8080"))
+GRPC_PORT = int(os.getenv("WEAVIATE_GRPC_PORT", "50051"))
+DEFAULT_COLLECTION = os.getenv("WEAVIATE_DEFAULT_COLLECTION", "NewCollection")
+
+# Nom de la collection (paramètre en argument ou variable d'environnement)
+collection_name = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_COLLECTION
+
+# Affichage de l'aide si demandé
+if len(sys.argv) > 1 and sys.argv[1] in ['-h', '--help', 'help']:
+    print("""
+🗄️  Création de schéma Weaviate
+================================
+
+Utilisation : python 01_create_schema.py [nom_collection]
+
+Exemples :
+  python 01_create_schema.py                    # Utilise la variable WEAVIATE_DEFAULT_COLLECTION
+  python 01_create_schema.py CollectionName      # Crée la collection "CollectionName"
+  python 01_create_schema.py CollectionName2      # Crée la collection "CollectionName2"
+
+Options :
+  -h, --help, help    Affiche cette aide
+
+Ce script :
+  • Crée une nouvelle collection Weaviate
+  • Gère intelligemment les collections existantes
+  • Configure l'index vectoriel HNSW
+""")
+    sys.exit(0)
 
 # Health check
 try:
@@ -24,8 +56,9 @@ client = weaviate.connect_to_custom(
 )
 print("✅ Le client Weaviate est connecté ✅")
 
+print(f"🎯 Collection cible : '{collection_name}'")
+
 # Gestion intelligente de la collection existante
-collection_name = "LinuxCommand"
 
 if client.collections.exists(collection_name):
     print(f"⚠️  La collection '{collection_name}' existe déjà !")

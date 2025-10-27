@@ -13,13 +13,19 @@ os.environ["WEAVIATE_DISABLE_WARNINGS"] = "1"
 
 load_dotenv()
 
+# Configuration Weaviate via variables d'environnement
+HOST = os.getenv("WEAVIATE_HOST", "wikiragweaviate")
+HTTP_PORT = int(os.getenv("WEAVIATE_HTTP_PORT", "8080"))
+GRPC_PORT = int(os.getenv("WEAVIATE_GRPC_PORT", "50051"))
+DEFAULT_COLLECTION = os.getenv("WEAVIATE_DEFAULT_COLLECTION", "NewCollection")
+
 if len(sys.argv) < 2:
     print("Utilisation : python 03_query.py \"poser une question ici\" [nom_collection]")
-    print("Exemple : python 03_query.py \"trouver les fichiers volumineux\" LinuxCommand")
+    print("Exemple : python 03_query.py \"trouver les fichiers volumineux\" CollectionName")
     sys.exit(1)
 
 question = sys.argv[1]
-collection_name = sys.argv[2] if len(sys.argv) > 2 else "LinuxCommand"
+collection_name = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_COLLECTION
 
 # Configuration Langchain
 embeddings = OpenAIEmbeddings(
@@ -29,8 +35,8 @@ embeddings = OpenAIEmbeddings(
 
 # Connexion Weaviate v4
 client_db = weaviate.connect_to_custom(
-    http_host="wikiragweaviate", http_port=8080, http_secure=False,
-    grpc_host="wikiragweaviate", grpc_port=50051, grpc_secure=False,
+    http_host=HOST, http_port=HTTP_PORT, http_secure=False,
+    grpc_host=HOST, grpc_port=GRPC_PORT, grpc_secure=False,
 )
 
 collection = client_db.collections.get(collection_name)

@@ -6,6 +6,7 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.prompts import PromptTemplate
 import warnings
 import asyncio
+import sys
 
 # Suppression des warnings non critiques
 warnings.filterwarnings("ignore", category=ResourceWarning)
@@ -26,6 +27,15 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise RuntimeError("❌ La variable OPENAI_API_KEY est manquante")
 
+# Configuration Weaviate via variables d'environnement
+HOST = os.getenv("WEAVIATE_HOST", "wikiragweaviate")
+HTTP_PORT = int(os.getenv("WEAVIATE_HTTP_PORT", "8080"))
+GRPC_PORT = int(os.getenv("WEAVIATE_GRPC_PORT", "50051"))
+DEFAULT_COLLECTION = os.getenv("WEAVIATE_DEFAULT_COLLECTION", "NewCollection")
+
+# Nom de la collection (par défaut depuis env, peut être changé via argument)
+collection_name = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_COLLECTION
+
 # Configuration Langchain
 embeddings = OpenAIEmbeddings(
     model="text-embedding-3-small",
@@ -34,11 +44,13 @@ embeddings = OpenAIEmbeddings(
 
 # Connexion Weaviate v4
 client_db = weaviate.connect_to_custom(
-    http_host="wikiragweaviate", http_port=8080, http_secure=False,
-    grpc_host="wikiragweaviate", grpc_port=50051, grpc_secure=False,
+    http_host=HOST, http_port=HTTP_PORT, http_secure=False,
+    grpc_host=HOST, grpc_port=GRPC_PORT, grpc_secure=False,
 )
 
-collection = client_db.collections.get("LinuxCommand")
+collection = client_db.collections.get(collection_name)
+
+print(f"🎯 Collection utilisée : '{collection_name}'")
 
 # Configuration du LLM avec Langchain
 llm = ChatOpenAI(
@@ -126,10 +138,12 @@ with gr.Blocks(
     theme=gr.themes.Soft()
 ) as demo:
     
-    gr.Markdown("""
+    gr.Markdown(f"""
     # 🐧 Assistant Linux Intelligent avec Langchain
     
     Posez votre question en français et recevez la commande Linux appropriée !
+    
+    **Collection active :** `{collection_name}`
     
     **Technologies utilisées :**
     - 🔗 Langchain pour l'orchestration RAG

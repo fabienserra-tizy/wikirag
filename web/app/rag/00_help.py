@@ -11,10 +11,23 @@ def print_help():
 🐧 Linux RAG - Assistant de commandes Linux
 ============================================================
 
+🔧 VARIABLES D'ENVIRONNEMENT :
+
+Les variables suivantes peuvent être configurées dans votre environnement :
+- WEAVIATE_HOST="wikiragweaviate" (défaut)
+- WEAVIATE_HTTP_PORT=8080 (défaut)
+- WEAVIATE_GRPC_PORT=50051 (défaut)
+- WEAVIATE_DEFAULT_COLLECTION="NewCollection" (défaut)
+- OPENAI_API_KEY=sk-xxxx (requis)
+
 📋 INSTRUCTIONS D'UTILISATION :
 
 1️⃣  Création du schéma Weaviate :
-   python 01_create_schema.py
+   python 01_create_schema.py [nom_collection]
+   
+   Exemples :
+   python 01_create_schema.py                    # Utilise la variable WEAVIATE_DEFAULT_COLLECTION
+   python 01_create_schema.py CollectionName      # Crée la collection "CollectionName"
    
    Options disponibles si la collection existe déjà :
    - Supprimer et recréer la même collection
@@ -25,20 +38,38 @@ def print_help():
    python 02_ingest.py [nom_collection]
    
    Exemples :
-   python 02_ingest.py                    # Utilise "LinuxCommand" par défaut
-   python 02_ingest.py LinuxCommandsV2   # Utilise "LinuxCommandsV2"
+   python 02_ingest.py                    # Utilise "NewCollection" par défaut
+   python 02_ingest.py CollectionName   # Utilise "CollectionName"
 
 3️⃣  Test en ligne de commande :
    python 03_query.py "question" [nom_collection]
    
    Exemples :
    python 03_query.py "trouver les fichiers volumineux"
-   python 03_query.py "voir les processus" LinuxCommandsV2
+   python 03_query.py "voir les processus" CollectionName
 
 4️⃣  Interface web Gradio :
-   python 04_gradio.py
+   python 04_gradio.py [nom_collection]
+   
+   Exemples :
+   python 04_gradio.py                    # Utilise "NewCollection" par défaut
+   python 04_gradio.py CollectionName   # Utilise "CollectionName"
    
    Accès : https://votre-domaine.com/rag
+
+5️⃣  Suppression de collection :
+   python 05_delete_collection.py <nom_collection>
+   
+   Exemples :
+   python 05_delete_collection.py CollectionName
+   python 05_delete_collection.py CollectionName2
+   
+   ⚠️  ATTENTION : Action IRRÉVERSIBLE !
+
+6️⃣  Listing des collections :
+   python 06_list_collections.py
+   
+   Affiche toutes les collections avec leurs statistiques
 
 🔧 ARCHITECTURE LANGCHAIN :
 
@@ -72,9 +103,9 @@ def print_help():
 🎯 COLLECTIONS MULTIPLES :
 
 Vous pouvez créer plusieurs collections pour différents usages :
-- LinuxCommand (par défaut)
-- LinuxCommandsV2 (version améliorée)
-- LinuxCommandsTest (pour les tests)
+- CollectionName (par défaut)
+- CollectionName2 (version améliorée)
+- CollectionName3 (pour les tests)
 - etc.
 
 Chaque collection est indépendante et peut contenir des données différentes.

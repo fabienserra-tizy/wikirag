@@ -3,6 +3,10 @@
 # ******* Proxy and web server ******* #
 export VHOST_TRAEFIK=wikirag.${DOCKER_USERNAME}.databird.io
 export OPENAI_API_KEY="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"
+export WEAVIATE_HOST="wikiragweaviate"
+export WEAVIATE_HTTP_PORT=8080
+export WEAVIATE_GRPC_PORT=50051
+export WEAVIATE_DEFAULT_COLLECTION="NewCollection"
 # If you want more:
 #export VHOST_TRAEFIK_1=
 #export VHOST_TRAEFIK_2=

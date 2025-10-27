@@ -104,8 +104,17 @@ from datasets import load_dataset  # Chargement HuggingFace
 Modifiez le fichier `./docker/env.sh` :
 
 ```bash
+# Configuration Traefik
 VHOST_TRAEFIK=votre-domaine.com # (exemple wikirag.fserra.databird.io)
+
+# Configuration OpenAI (requis)
 OPENAI_API_KEY=sk-xxxx
+
+# Configuration Weaviate (optionnel)
+WEAVIATE_HOST="wikiragweaviate"
+WEAVIATE_HTTP_PORT=8080
+WEAVIATE_GRPC_PORT=50051
+WEAVIATE_DEFAULT_COLLECTION="NewCollection"
 ```
 
 2. **Dépendances système** - Docker et Docker Compose installés et le raccourci `tizy run`
@@ -131,11 +140,18 @@ cd /usr/src/app/rag
 
 #### 4. 🗄️ Création du schéma Weaviate (avec gestion intelligente)
 ```bash
-python 01_create_schema.py
+python 01_create_schema.py [nom_collection]
 ```
-**Rôle :** Initialise la collection `LinuxCommand` dans Weaviate avec gestion intelligente des collections existantes.
+**Rôle :** Initialise une collection dans Weaviate avec gestion intelligente des collections existantes.
 
-**Options disponibles :**
+**Exemples :**
+```bash
+python 01_create_schema.py                    # Utilise WEAVIATE_DEFAULT_COLLECTION
+python 01_create_schema.py CollectionName      # Crée "CollectionName"
+python 01_create_schema.py CollectionName2      # Crée "CollectionName2"
+```
+
+**Options disponibles si la collection existe déjà :**
 - Supprimer et recréer la même collection
 - Créer une nouvelle collection avec un nom différent
 - Ignorer, ne rien faire
@@ -145,14 +161,14 @@ python 01_create_schema.py
 python 02_ingest.py [nom_collection]
 ```
 **Rôle :** 
-- Charge le dataset `hrsvrn/linux-commands-dataset` (500 premières entrées)
+- Charge le dataset `hrsvrn/linux-commands-dataset` (1000 premières entrées)
 - Génère les embeddings OpenAI via `OpenAIEmbeddings`
 - Insère les données vectorisées dans Weaviate v4
 
 **Exemples :**
 ```bash
-python 02_ingest.py                    # Utilise "LinuxCommand" par défaut
-python 02_ingest.py LinuxCommandsV2   # Utilise "LinuxCommandsV2"
+python 02_ingest.py                    # Utilise "NewCollection" par défaut
+python 02_ingest.py CollectionName   # Utilise "CollectionName"
 ```
 
 #### 6. 🧪 Test en mode API/CLI avec Langchain
@@ -164,7 +180,7 @@ python 03_query.py "question" [nom_collection]
 **Exemples :**
 ```bash
 python 03_query.py "trouver les fichiers volumineux"
-python 03_query.py "voir les processus" LinuxCommandsV2
+python 03_query.py "voir les processus" CollectionName
 ```
 
 #### 7. 🌐 Lancement de l'interface Gradio avec Langchain
@@ -180,7 +196,33 @@ python 04_gradio.py
 
 ✅ L'interface est accessible via https://votre-domaine.com/rag
 
-#### 8. 📚 Aide et documentation
+#### 8. 🗑️ Suppression de collection (optionnel)
+```bash
+python 05_delete_collection.py <nom_collection>
+```
+**Rôle :** Supprime une collection Weaviate avec confirmation de sécurité.
+
+**Exemples :**
+```bash
+python 05_delete_collection.py CollectionName
+python 05_delete_collection.py CollectionName2
+```
+
+⚠️ **ATTENTION :** Cette action est IRRÉVERSIBLE !
+
+#### 9. 📋 Listing des collections
+```bash
+python 06_list_collections.py
+```
+**Rôle :** Affiche toutes les collections Weaviate disponibles avec leurs statistiques.
+
+**Fonctionnalités :**
+- Liste toutes les collections
+- Affiche le nombre d'objets par collection
+- Montre les propriétés de chaque collection
+- Suggestions d'utilisation
+
+#### 10. 📚 Aide et documentation
 ```bash
 python 00_help.py
 ```
@@ -192,7 +234,7 @@ python 00_help.py
 
 ### Source
 - **Dataset** : `hrsvrn/linux-commands-dataset` (HuggingFace)
-- **Taille** : 500 commandes sélectionnées (optimisé pour les tests)
+- **Taille** : 1000 commandes sélectionnées (optimisé pour les tests)
 - **Format** : Paires question/réponse en anglais
 - **Couverture** : Filesystem, réseau, processus, administration...
 
@@ -282,6 +324,8 @@ root/
 │   ├── 02_ingest.py           # Ingestion dataset avec Langchain
 │   ├── 03_query.py            # Interface CLI/API avec Langchain
 │   ├── 04_gradio.py           # Interface web Gradio avec Langchain
+│   ├── 05_delete_collection.py # Suppression de collection (avec confirmation)
+│   ├── 06_list_collections.py  # Listing des collections avec statistiques
 │   └── requirements.txt        # Dépendances Python (Langchain inclus)
 └── README.md                   # Documentation complète
 ```

@@ -14,12 +14,14 @@ os.environ["WEAVIATE_DISABLE_WARNINGS"] = "1"
 
 load_dotenv()
 
-HOST = "wikiragweaviate"
-HTTP_PORT = 8080
-GRPC_PORT = 50051
+# Configuration Weaviate via variables d'environnement
+HOST = os.getenv("WEAVIATE_HOST", "wikiragweaviate")
+HTTP_PORT = int(os.getenv("WEAVIATE_HTTP_PORT", "8080"))
+GRPC_PORT = int(os.getenv("WEAVIATE_GRPC_PORT", "50051"))
+DEFAULT_COLLECTION = os.getenv("WEAVIATE_DEFAULT_COLLECTION", "NewCollection")
 
-# Nom de la collection (par défaut LinuxCommand, peut être changé via argument)
-collection_name = sys.argv[1] if len(sys.argv) > 1 else "LinuxCommand"
+# Nom de la collection (par défaut depuis env, peut être changé via argument)
+collection_name = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_COLLECTION
 
 # Connexion Weaviate v4
 client_db = weaviate.connect_to_custom(

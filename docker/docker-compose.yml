@@ -52,6 +52,10 @@ services:
             - HOSTNAME_MAIL=tizy-studio
             - ROOT_NAME="Tizy Studio"
             - OPENAI_API_KEY=${OPENAI_API_KEY}
+            - WEAVIATE_HOST=${WEAVIATE_HOST}
+            - WEAVIATE_HTTP_PORT=${WEAVIATE_HTTP_PORT}
+            - WEAVIATE_GRPC_PORT=${WEAVIATE_GRPC_PORT}
+            - WEAVIATE_DEFAULT_COLLECTION=${WEAVIATE_DEFAULT_COLLECTION}
         labels:
             - traefik.enable=false
         links:

@@ -8,7 +8,7 @@ import sys
 
 def print_help():
     print("""
-🐧 Linux RAG - Assistant de Commandes Linux avec Langchain
+🐧 Linux RAG - Assistant de commandes Linux
 ============================================================
 
 📋 INSTRUCTIONS D'UTILISATION :

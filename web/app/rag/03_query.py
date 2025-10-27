@@ -68,7 +68,7 @@ results = collection.query.hybrid(
     query=question,
     vector=question_embedding,
     alpha=0.5,
-    limit=12  # Plus de résultats pour avoir de la diversité
+    limit=12
 ).objects
 
 # Élimination des doublons et construction du contexte

@@ -38,7 +38,7 @@ print(f"📥 Chargement du dataset hrsvrn/linux-commands-dataset avec Langchain�
 print(f"🎯 Collection cible : '{collection_name}'")
 
 # Chargement du dataset avec datasets (plus fiable)
-ds = load_dataset("hrsvrn/linux-commands-dataset", split="train[:50]")
+ds = load_dataset("hrsvrn/linux-commands-dataset", split="train[:1000]")
 
 # Préparation des données pour insertion
 batch = []
